@@ -1,3 +1,5 @@
+import re
+
 import scrapy
 
 from ..items import ScrapItem
@@ -10,15 +12,22 @@ class AmazonSpider(scrapy.Spider):
     def parse(self, response):
         products = ScrapItem()
 
+        regex_asin = re.compile("dp/(.*)?_")
+
         all_items_in_lo = response.css('li.zg-item-immersion')
         for item in all_items_in_lo:
-            products['asin'] = item.xpath(
-                "descendant-or-self::a[@class and contains(concat(' ', normalize-space(@class), ' '), ' a-link-normal ')]/@href").extract()
-            products['product_name'] = item.css('.p13n-sc-truncate.p13n-sc-line-clamp-2::text').extract()
-            products['price'] = item.css('.p13n-sc-price::text').extract()
-            products['number_of_reviews'] = item.css('.a-size-small.a-link-normal::text').extract()
-            products['number_of_stars'] = item.css('.a-icon-alt::text').extract()
+            products['asin'] = regex_asin.search(str(item.css('.a-link-normal ::attr(href)')[0].extract())).group(1)[
+                               :-1]
+            products['product_name'] = str(item.css('.a-section .a-spacing-small img::attr(alt)').extract()).strip(
+                '[').strip(']').strip('\'')
+            products['price'] = str(item.css('.p13n-sc-price::text').extract())[:-7].strip('[').strip(']').strip(
+                '\'').strip('\"')
+            products['number_of_reviews'] = str(item.css('.a-size-small.a-link-normal::text').extract()).strip(
+                '[').strip(']').strip('\'')
+            products['number_of_stars'] = str(item.css('.a-icon-alt::text').extract())[:5].strip('[').strip(']').strip(
+                '\'').strip('\"')
+
             yield products
 
         for href in response.css('li.a-last a::attr(href)'):
-            yield response.follow(href, callback=self.parse)
+            yield response.follow(href, self.parse)
